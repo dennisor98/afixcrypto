@@ -1,0 +1,6 @@
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': true
+  '@sentry-internal/node-cpu-profiler': true
+  bcrypt: true
+  msgpackr-extract: true
