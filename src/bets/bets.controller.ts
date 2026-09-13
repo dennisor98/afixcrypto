@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { BetsService } from './bets.service';
 import { CreateBetDto } from './dto/create-bet.dto';
@@ -9,6 +10,8 @@ import { updateSignalBetDto } from './dto/update-signal.dto';
 import { Signals } from './entities/signal.interval';
 import { AdminGuard, AuthGuard } from 'src/auth/auth.guard';
 
+const skipSignalReadThrottles = { short: true, medium: true, auth: true };
+
 @Controller('trades')
 @ApiTags('trades')
 @ApiBearerAuth('defaultBearerAuth')
@@ -16,6 +19,7 @@ export class BetsController {
   constructor(private readonly betsService: BetsService) {}
 
   @Get('getSignal/:dayhour')
+  @SkipThrottle(skipSignalReadThrottles)
   async getSignalsForDayhour(@Param('dayhour') dayhour: string): Promise<Signals[]> {
     return this.betsService.getSignalsForDayhour(dayhour);
   }
@@ -35,18 +39,21 @@ export class BetsController {
 
   @UseGuards(AuthGuard)
   @Get('get_today_signals')
+  @SkipThrottle(skipSignalReadThrottles)
   findTodaySignals() {
     return this.betsService.getSignalsAndSignalHoursForToday();
   }
 
   @UseGuards(AuthGuard)
   @Get('signal/:id')
+  @SkipThrottle(skipSignalReadThrottles)
   findOneSignal(@Param('id') id: string) {
     return this.betsService.getSignalById(id);
   }
 
   @UseGuards(AuthGuard)
   @Get('get_intervals')
+  @SkipThrottle(skipSignalReadThrottles)
   findintervals() {
     return this.betsService.getintervals();
   }

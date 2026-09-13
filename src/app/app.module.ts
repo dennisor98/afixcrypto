@@ -46,9 +46,12 @@ import { AppService } from './app.service';
     ConfigModule.forRoot({ isGlobal: true }),
 
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 60_000, limit: 60 },
-      { name: 'medium', ttl: 60_000 * 10, limit: 500 },
-      { name: 'auth', ttl: 60_000 * 15, limit: 5 },
+      // All named throttlers are evaluated for routes without an explicit
+      // override. Keep the general API usable for dashboard polling and
+      // shared IP addresses, while route-level auth/OTP limits remain strict.
+      { name: 'short', ttl: 60_000, limit: 300 },
+      { name: 'medium', ttl: 60_000 * 10, limit: 2_500 },
+      { name: 'auth', ttl: 60_000 * 15, limit: 1_000 },
     ]),
 
     ServeStaticModule.forRoot(
