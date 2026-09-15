@@ -137,6 +137,9 @@ export class BetsService {
     });
 
     await this.betQueue.add('updateBetStatus', { betId: savedBet.id }, { delay: delayMs });
+    this.logger.log(
+      `Bet ${savedBet.id} created with status ${savedBet.status}; settlement queued for ${savedBet.settleAt.toISOString()}`,
+    );
 
     return {
       message: 'Trade placed. It will settle at the end of the period.',
@@ -152,6 +155,7 @@ export class BetsService {
 
   async updateBetStatus(job: Job<{ betId: string }>) {
     const { betId } = job.data;
+    this.logger.debug(`Starting settlement lookup for bet ${betId}`);
 
     const bet = await this.betsRepository
       .createQueryBuilder('bet')
@@ -162,12 +166,13 @@ export class BetsService {
       .getOne();
 
     if (!bet) {
-      this.logger.error(`Settlement skipped, bet ${betId} not found`);
+      this.logger.warn(`Settlement skipped, bet ${betId} not found`);
       return;
     }
 
     // Settle each bet only once
     if (bet.status !== state.pending) {
+      this.logger.debug(`Settlement skipped for bet ${betId}; current status is ${bet.status}`);
       return;
     }
 
@@ -176,7 +181,8 @@ export class BetsService {
       endPrice = await this.priceService.getBtcUsdtPrice();
     } catch (err) {
       // Requeue rather than dropping the bet, so the user is always settled
-      this.logger.error(`Price fetch failed for bet ${betId}, retrying in 30s`);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Price fetch failed for bet ${betId}: ${message}; retrying in 30s`);
       await this.betQueue.add('updateBetStatus', { betId }, { delay: 30 * 1000 });
       return;
     }
@@ -196,6 +202,7 @@ export class BetsService {
       await this.betsRepository.save(bet);
       await this.creditWallet(bet.user.id, stake);
       await this.notificationsGateway.emitNotification(bet);
+      this.logger.log(`Bet ${betId} settled as ${bet.status}; unchanged BTC price, stake returned`);
       return;
     }
 
@@ -214,6 +221,9 @@ export class BetsService {
     }
 
     await this.notificationsGateway.emitNotification(bet);
+    this.logger.log(
+      `Bet ${betId} settled as ${bet.status}; start price ${startPrice.toFixed(8)}, end price ${endPrice.toFixed(8)}`,
+    );
   }
 
   // Credits a user's real balance inside a locked transaction

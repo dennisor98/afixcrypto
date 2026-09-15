@@ -15,6 +15,7 @@ import { Signals } from '../bets/entities/signal.interval';
 import { signal_Hour } from '../bets/entities/signal.entity';
 import { PlatformSettings } from '../admin/entities/platform-settings.entity';
 import { AdminAuditLog } from '../admin/entities/admin-audit-log.entity';
+import { Notification } from '../notifications/entities/notification.entity';
 
 export const AppDataSource = new DataSource({
     type: 'mysql',
@@ -26,7 +27,7 @@ export const AppDataSource = new DataSource({
     entities: [
         User, Wallet, Mailer, TronwalletDeposits, WithdrawalRequests,
         Referrer, ReferralBonus, Bet, Signals, signal_Hour,
-        PlatformSettings, AdminAuditLog,
+        PlatformSettings, AdminAuditLog, Notification,
     ],
     migrations: ['src/database/migrations/*.ts'],
     synchronize: false,
