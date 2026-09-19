@@ -25,6 +25,13 @@ export class AdminService {
     }
 
     async updateSettings(updates: Partial<PlatformSettings>, adminId: string) {
+        if (updates.dailyTradeReturnRate !== undefined) {
+            const rate = Number(updates.dailyTradeReturnRate);
+            if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+                throw new HttpException('dailyTradeReturnRate must be between 0 and 100.', HttpStatus.BAD_REQUEST);
+            }
+        }
+
         const settings = await this.getSettings();
         Object.assign(settings, updates);
         settings.updatedBy = adminId;

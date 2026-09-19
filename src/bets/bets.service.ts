@@ -6,7 +6,8 @@ import { Between, DataSource, Repository } from 'typeorm';
 import type { Queue, Job } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 
-import { Bet, state } from 'src/bets/entities/bet.entity';
+import { Bet, BetTradeType, state } from 'src/bets/entities/bet.entity';
+import { TradingBot } from './entities/trading-bot.entity';
 import { CreateBetDto } from './dto/create-bet.dto';
 import { Direction, Signals } from './entities/signal.interval';
 import { signal_Hour } from './entities/signal.entity';
@@ -18,6 +19,7 @@ import { ReferralsService } from 'src/referral/referral.service';
 import { NotificationsGateway } from 'src/notifications/notifications.gateway';
 import { AdminService } from 'src/admin/admin.service';
 import { PriceService } from './price.service';
+import { TradingBotsService } from './trading-bots.service';
 
 @Injectable()
 export class BetsService {
@@ -34,6 +36,7 @@ export class BetsService {
     private readonly notificationsGateway: NotificationsGateway,
     private readonly adminService: AdminService,
     private readonly priceService: PriceService,
+    private readonly tradingBotsService: TradingBotsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -80,11 +83,35 @@ export class BetsService {
       throw new HttpException(`Maximum trade is ${maxBet} USDT.`, HttpStatus.BAD_REQUEST);
     }
 
-    const periodMinutes = this.parsePeriodMinutes(createBetDto.Period);
+    const period = String(createBetDto.Period).toLowerCase();
+    const periodMinutes = this.parsePeriodMinutes(period);
     const delayMs = periodMinutes * 60 * 1000;
+    const isTwentyFourHourTrade = period === BetTradeType.twentyFourHour;
+    const dailyReturnRate = Number(settings.dailyTradeReturnRate);
+    if (isTwentyFourHourTrade && (!Number.isFinite(dailyReturnRate) || dailyReturnRate < 0 || dailyReturnRate > 100)) {
+      throw new HttpException('The 24-hour trade return rate is not configured correctly.', HttpStatus.SERVICE_UNAVAILABLE);
+    }
 
-    // Live BTC price at the moment of placement
-    const startPrice = await this.priceService.getBtcUsdtPrice();
+    const selectedBot = createBetDto.botId
+      ? await this.tradingBotsService.getActiveById(createBetDto.botId)
+      : null;
+    const tradeCount = Number(createBetDto.tradeCount ?? 1);
+    if (!Number.isInteger(tradeCount) || tradeCount < 1 || tradeCount > 10) {
+      throw new HttpException('tradeCount must be an integer between 1 and 10.', HttpStatus.BAD_REQUEST);
+    }
+    if (!selectedBot && tradeCount > 1) {
+      throw new HttpException('Multiple simultaneous trades require a trading bot.', HttpStatus.BAD_REQUEST);
+    }
+    if (!selectedBot && !createBetDto.direction) {
+      throw new HttpException('Direction is required when no trading bot is selected.', HttpStatus.BAD_REQUEST);
+    }
+    const resolvedDirection: Direction = selectedBot
+      ? await this.tradingBotsService.analyze(selectedBot)
+      : createBetDto.direction!;
+    const marketSymbol = selectedBot?.symbol ?? 'BTCUSDT';
+
+    // Live market price at the moment of placement
+    const startPrice = await this.priceService.getPrice(marketSymbol);
 
     // Best effort link to the current signal window, for reporting only.
     // It does not influence the outcome.
@@ -105,48 +132,91 @@ export class BetsService {
       }
 
       // Checked inside the lock so two simultaneous trades cannot both pass
-      const pending = await manager.getRepository(Bet).count({
-        where: { user: { id: user.id }, status: state.pending },
-      });
-      if (pending > 0) {
-        throw new HttpException('You already have an active trade.', HttpStatus.FORBIDDEN);
+      if (!selectedBot) {
+        const pending = await manager
+          .getRepository(Bet)
+          .createQueryBuilder('bet')
+          .where('bet.userId = :userId', { userId: user.id })
+          .andWhere('bet.status = :status', { status: state.pending })
+          .andWhere('bet.tradeType = :tradeType', { tradeType: BetTradeType.regular })
+          .getCount();
+        if (pending > 0) {
+          throw new HttpException('You already have an active trade.', HttpStatus.FORBIDDEN);
+        }
       }
 
+      const totalStake = betAmount * tradeCount;
       const balance = parseFloat(wallet.amount);
-      if (betAmount > balance) {
+      if (totalStake > balance) {
         throw new HttpException('Insufficient balance, please top up.', HttpStatus.FORBIDDEN);
       }
 
-      wallet.amount = (balance - betAmount).toFixed(8);
+      wallet.amount = (balance - totalStake).toFixed(8);
       await manager.save(wallet);
 
-      const bet = new Bet();
-      bet.betAmount = betAmount.toFixed(8);
-      bet.betType = createBetDto.direction;
-      bet.status = state.pending;
-      bet.projectedstatus = state.pending;
-      bet.isVirtual = false;
-      bet.user = user;
-      bet.startPrice = startPrice.toFixed(8);
-      bet.settleAt = new Date(Date.now() + delayMs);
-      if (currentSignal) {
-        bet.signal = currentSignal;
-      }
+      const bets = Array.from({ length: tradeCount }, () => {
+        const bet = new Bet();
+        bet.betAmount = betAmount.toFixed(8);
+        bet.betType = resolvedDirection;
+        bet.marketSymbol = marketSymbol;
+        bet.bot = selectedBot;
+        bet.tradeType = isTwentyFourHourTrade ? BetTradeType.twentyFourHour : BetTradeType.regular;
+        bet.returnRate = isTwentyFourHourTrade ? dailyReturnRate.toFixed(4) : null;
+        bet.status = state.pending;
+        bet.projectedstatus = state.pending;
+        bet.isVirtual = false;
+        bet.user = user;
+        bet.startPrice = startPrice.toFixed(8);
+        bet.settleAt = new Date(Date.now() + delayMs);
+        if (currentSignal) {
+          bet.signal = currentSignal;
+        }
+        return bet;
+      });
 
-      return manager.save(bet);
+      return manager.save(bets);
     });
 
-    await this.betQueue.add('updateBetStatus', { betId: savedBet.id }, { delay: delayMs });
-    this.logger.log(
-      `Bet ${savedBet.id} created with status ${savedBet.status}; settlement queued for ${savedBet.settleAt.toISOString()}`,
+    await Promise.all(
+      savedBet.map(bet =>
+        this.betQueue.add(
+          'updateBetStatus',
+          { betId: bet.id },
+          { delay: Math.max(0, bet.settleAt.getTime() - Date.now()) },
+        ),
+      ),
     );
+    savedBet.forEach(bet => {
+      this.logger.log(
+        `Bet ${bet.id} created by ${selectedBot?.name ?? 'manual trade'} with status ${bet.status}; settlement queued for ${bet.settleAt.toISOString()}`,
+      );
+    });
 
-    return {
-      message: 'Trade placed. It will settle at the end of the period.',
-      betId: savedBet.id,
-      startPrice: savedBet.startPrice,
-      settleAt: savedBet.settleAt,
-    };
+    const firstBet = savedBet[0];
+    return tradeCount === 1
+      ? {
+          message: 'Trade placed. It will settle at the end of the period.',
+          betId: firstBet.id,
+          tradeType: firstBet.tradeType,
+          returnRate: firstBet.returnRate,
+          botId: selectedBot?.id ?? null,
+          direction: firstBet.betType,
+          marketSymbol: firstBet.marketSymbol,
+          startPrice: firstBet.startPrice,
+          settleAt: firstBet.settleAt,
+        }
+      : {
+          message: `${tradeCount} trades placed. They will settle at the end of the selected period.`,
+          betIds: savedBet.map(bet => bet.id),
+          tradeCount,
+          tradeType: firstBet.tradeType,
+          returnRate: firstBet.returnRate,
+          botId: selectedBot?.id ?? null,
+          direction: firstBet.betType,
+          marketSymbol: firstBet.marketSymbol,
+          startPrice: firstBet.startPrice,
+          settleAt: firstBet.settleAt,
+        };
   }
 
   // ---------------------------------------------------------------
@@ -176,6 +246,26 @@ export class BetsService {
       return;
     }
 
+    const remainingMs = bet.settleAt ? bet.settleAt.getTime() - Date.now() : 0;
+    if (remainingMs > 0) {
+      this.logger.debug(`Settlement deferred for bet ${betId}; ${remainingMs}ms remain`);
+      await this.betQueue.add('updateBetStatus', { betId }, { delay: remainingMs });
+      return;
+    }
+
+    const stake = parseFloat(bet.betAmount);
+
+    if (bet.tradeType === BetTradeType.twentyFourHour) {
+      const returnRate = parseFloat(bet.returnRate ?? '0');
+      bet.status = state.won;
+      bet.projectedstatus = state.won;
+      await this.betsRepository.save(bet);
+      await this.creditWallet(bet.user.id, stake * (1 + returnRate / 100));
+      await this.notificationsGateway.emitNotification(bet);
+      this.logger.log(`Bet ${betId} settled as ${bet.status}; fixed return rate ${returnRate}%`);
+      return;
+    }
+
     let endPrice: number;
     try {
       endPrice = await this.priceService.getBtcUsdtPrice();
@@ -188,7 +278,6 @@ export class BetsService {
     }
 
     const startPrice = parseFloat(bet.startPrice);
-    const stake = parseFloat(bet.betAmount);
 
     const settings = await this.adminService.getSettings();
     const payoutMultiplier = Number(settings.payoutMultiplier) || 1.95;
@@ -247,8 +336,8 @@ export class BetsService {
   }
 
   private parsePeriodMinutes(period: string): number {
-    const map: Record<string, number> = { '5m': 5, '15m': 15, '30m': 30 };
-    return map[period] ?? 5;
+    const map: Record<string, number> = { '5m': 5, '15m': 15, '30m': 30, '24h': 24 * 60 };
+    return map[period.toLowerCase()] ?? 5;
   }
 
   private async tryGetCurrentSignal(): Promise<Signals | null> {

@@ -16,6 +16,9 @@ import { signal_Hour } from '../bets/entities/signal.entity';
 import { PlatformSettings } from '../admin/entities/platform-settings.entity';
 import { AdminAuditLog } from '../admin/entities/admin-audit-log.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { TradingBot } from '../bets/entities/trading-bot.entity';
+import { BotSubscription } from '../bets/entities/bot-subscription.entity';
+import { PremiumBotPayment } from '../tronwallet/entities/premium-bot-payment.entity';
 
 export const AppDataSource = new DataSource({
     type: 'mysql',
@@ -28,6 +31,9 @@ export const AppDataSource = new DataSource({
         User, Wallet, Mailer, TronwalletDeposits, WithdrawalRequests,
         Referrer, ReferralBonus, Bet, Signals, signal_Hour,
         PlatformSettings, AdminAuditLog, Notification,
+        TradingBot,
+        BotSubscription,
+        PremiumBotPayment,
     ],
     migrations: ['src/database/migrations/*.ts'],
     synchronize: false,

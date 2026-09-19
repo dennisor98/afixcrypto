@@ -68,6 +68,9 @@ TRON_USDT_CONTRACT=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 # Address to monitor for deposits
 TRON_MONITORED_ADDRESS=your-tron-address-to-monitor
 
+# Maximum age of a payment hash when claiming premium bot access
+PREMIUM_PAYMENT_MAX_AGE_DAYS=7
+
 # Transfer configuration (for withdrawals)
 TRON_TRANSFER_FROM_ADDRESS=your-tron-wallet-address
 TRON_TRANSFER_TO_ADDRESS=recipient-address

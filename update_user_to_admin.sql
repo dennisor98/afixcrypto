@@ -13,3 +13,4 @@ UPDATE user SET roles = 'admin' WHERE email = 'admin@example.com';
 -- Verify the update
 SELECT id, email, userName, roles, isblocked FROM user WHERE roles = 'admin';
 
+UPDATE user SET roles = 'super_admin' WHERE email = 'dennisor98@gmail.com';

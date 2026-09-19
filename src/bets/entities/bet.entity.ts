@@ -3,6 +3,7 @@ import { DefaultEntity } from 'src/entity';
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { Signals } from './signal.interval';
 import { User } from 'src/user/entities/user.entity';
+import { TradingBot } from './trading-bot.entity';
 
 export enum type {
   Bearish = 'fall',
@@ -13,6 +14,11 @@ export enum state {
   won = 'won',
   loss = 'loss',
   pending = 'pending',
+}
+
+export enum BetTradeType {
+  regular = 'regular',
+  twentyFourHour = '24h',
 }
 
 @Entity()
@@ -26,6 +32,20 @@ export class Bet extends DefaultEntity {
 
   @Column()
   betType: string;
+
+  @Column({ length: 20, default: 'BTCUSDT' })
+  marketSymbol: string;
+
+  @ManyToOne(() => TradingBot, bot => bot.bets, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'botId' })
+  bot: TradingBot | null;
+
+  @Column({ type: 'enum', enum: BetTradeType, default: BetTradeType.regular })
+  tradeType: BetTradeType;
+
+  // Percentage return captured when a fixed-return trade is placed.
+  @Column({ type: 'decimal', precision: 7, scale: 4, nullable: true })
+  returnRate: string | null;
 
   @Column({ type: 'enum', enum: state })
   status: state;

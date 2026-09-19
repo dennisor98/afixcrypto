@@ -22,6 +22,9 @@ import { signal_Hour } from 'src/bets/entities/signal.entity';
 import { PlatformSettings } from 'src/admin/entities/platform-settings.entity';
 import { AdminAuditLog } from 'src/admin/entities/admin-audit-log.entity';
 import { Notification } from 'src/notifications/entities/notification.entity';
+import { TradingBot } from 'src/bets/entities/trading-bot.entity';
+import { BotSubscription } from 'src/bets/entities/bot-subscription.entity';
+import { PremiumBotPayment } from 'src/tronwallet/entities/premium-bot-payment.entity';
 
 
 // Modules
@@ -95,7 +98,7 @@ import { AppService } from './app.service';
         entities: [
           User, Wallet, Mailer, TronwalletDeposits, WithdrawalRequests,
           Referrer, ReferralBonus, Bet, Signals, signal_Hour,
-          PlatformSettings, AdminAuditLog, Notification,
+          PlatformSettings, AdminAuditLog, Notification, TradingBot, BotSubscription, PremiumBotPayment,
         ],
         synchronize: configService.get<boolean>('DB_SYNCHRONIZE') ?? false,
         logging: configService.get<boolean>('DB_LOGGING') ?? false,

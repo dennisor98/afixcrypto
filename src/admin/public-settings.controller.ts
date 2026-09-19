@@ -12,6 +12,7 @@ export class PublicSettingsController {
         const s = await this.adminService.getSettings();
         return {
             payoutMultiplier: s.payoutMultiplier,
+            dailyTradeReturnRate: s.dailyTradeReturnRate,
             minBet: s.minBet,
             maxBet: s.maxBet,
             minDeposit: s.minDeposit,

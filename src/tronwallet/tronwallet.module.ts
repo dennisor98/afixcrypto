@@ -12,6 +12,8 @@ import { HttpModule } from '@nestjs/axios';
 import { AuthModule } from 'src/auth/auth.module';
 import { Bet } from 'src/bets/entities/bet.entity';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PremiumBotPayment } from './entities/premium-bot-payment.entity';
+import { PremiumAccessService } from './premium-access.service';
 
 @Module({
   imports: [
@@ -21,6 +23,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       Wallet,
       WithdrawalRequests,
       Bet,
+      PremiumBotPayment,
     ]),
     ReferralModule,
     HttpModule,
@@ -28,7 +31,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [TronwalletController],
-  providers: [TronWalletService, SchedulerService],
-  exports: [TronWalletService, SchedulerService],
+  providers: [TronWalletService, SchedulerService, PremiumAccessService],
+  exports: [TronWalletService, SchedulerService, PremiumAccessService],
 })
 export class TronwalletModule {}

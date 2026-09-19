@@ -10,15 +10,22 @@ import { BetsController } from './bets.controller';
 import { DailySchedulerService } from './bet_task_service';
 import { BetProcessor } from './bet_processor';
 import { PriceService } from './price.service';
+import { TradingBotsService } from './trading-bots.service';
+import { TradingBotsController } from './trading-bots.controller';
+import { BotExecutionService } from './bot-execution.service';
+import { BotExecutionController } from './bot-execution.controller';
 
 import { Signals } from './entities/signal.interval';
 import { Bet } from './entities/bet.entity';
+import { TradingBot } from './entities/trading-bot.entity';
+import { BotSubscription } from './entities/bot-subscription.entity';
 import { signal_Hour } from './entities/signal.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Wallet } from 'src/user/entities/user.wallet.entity';
 import { ReferralModule } from 'src/referral/referral.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AdminModule } from 'src/admin/admin.module';
+import { TronwalletModule } from 'src/tronwallet/tronwallet.module';
 
 @Module({
   imports: [
@@ -33,14 +40,15 @@ import { AdminModule } from 'src/admin/admin.module';
     }),
     BullModule.registerQueue({ name: 'betQueue' }),
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([User, Wallet, Signals, Bet, signal_Hour]),
+    TypeOrmModule.forFeature([User, Wallet, Signals, Bet, signal_Hour, TradingBot, BotSubscription]),
     UserModule,
     ReferralModule,
     NotificationsModule,
     forwardRef(() => AdminModule),
+    TronwalletModule,
   ],
-  controllers: [BetsController],
-  providers: [BetsService, DailySchedulerService, BetProcessor, PriceService],
-  exports: [BetsService, DailySchedulerService, BetProcessor, PriceService],
+  controllers: [BetsController, TradingBotsController, BotExecutionController],
+  providers: [BetsService, DailySchedulerService, BetProcessor, PriceService, TradingBotsService, BotExecutionService],
+  exports: [BetsService, DailySchedulerService, BetProcessor, PriceService, TradingBotsService, BotExecutionService],
 })
 export class BetsModule {}

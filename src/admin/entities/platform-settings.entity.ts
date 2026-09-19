@@ -11,6 +11,9 @@ export class PlatformSettings {
     @Column({ type: 'decimal', precision: 5, scale: 2, default: 1.95 })
     payoutMultiplier: number;
 
+    @Column({ type: 'decimal', precision: 7, scale: 4, default: 5 })
+    dailyTradeReturnRate: number;
+
     @Column({ type: 'decimal', precision: 18, scale: 2, default: 1 })
     minBet: number;
 
