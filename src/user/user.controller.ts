@@ -165,7 +165,7 @@ export class UserController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/user/refresh',
+      path: '/',
     });
   }
 
@@ -173,7 +173,7 @@ export class UserController {
   @Post('logout')
   async logout(@Req() req: any, @Res({ passthrough: true }) res: any) {
     await this.userService.revokeRefreshToken(req.user.id);
-    res.clearCookie('refresh_token', { path: '/user/refresh' });
+    res.clearCookie('refresh_token', { path: '/' });
     return { message: 'Logged out' };
   }
 

@@ -139,6 +139,7 @@ export class BetsService {
           .where('bet.userId = :userId', { userId: user.id })
           .andWhere('bet.status = :status', { status: state.pending })
           .andWhere('bet.tradeType = :tradeType', { tradeType: BetTradeType.regular })
+          .andWhere('bet.botId IS NULL')
           .getCount();
         if (pending > 0) {
           throw new HttpException('You already have an active trade.', HttpStatus.FORBIDDEN);
